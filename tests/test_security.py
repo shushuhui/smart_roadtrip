@@ -74,6 +74,22 @@ def test_rate_limit_returns_429(monkeypatch) -> None:
     assert client.get("/health").status_code == 200
 
 
+def test_ready_reports_multi_key_auth(monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_KEY", "")
+    monkeypatch.setattr(config, "API_KEYS", "key-a:10,key-b")
+
+    payload = client.get("/ready").json()
+    assert payload["checks"]["api_auth_enabled"] is True
+
+
+def test_ready_reports_auth_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_KEY", "")
+    monkeypatch.setattr(config, "API_KEYS", "")
+
+    payload = client.get("/ready").json()
+    assert payload["checks"]["api_auth_enabled"] is False
+
+
 def test_ready_endpoint_reports_checks() -> None:
     response = client.get("/ready")
 

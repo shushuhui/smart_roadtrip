@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概况
 
-项目名：**基于多智能体协作的旅行规划系统（Smart Roadtrip）**。这是一个智能自驾游多 Agent 行程规划系统。设计依据是 `docs/architecture.jpg`（根目录的微信图片为其原始副本）。当前已完成数据模型、共享状态、MainAgent 图骨架、FastAPI 接口（可选 API key/多 key 鉴权、线程归属隔离、租户配额、行程列表/用量/删除、租户审计查询、管理员跨租户用量汇总、限流、CORS、readiness、请求 ID、进程内指标与审计日志），A2A 任务/结果信封与 MCP 工具调用协议、Streamlit 原型、自然语言需求解析（LLM 可选、规则降级）、高德地图（路线/POI）、彩云天气与 Open-Meteo 免费天气、本地 RAG（FAISS + sentence-transformers）、可选的 SQLite 会话持久化、游记草稿生成（LLM 可选、模板降级）、Markdown/HTML/GPX/PDF 导出，以及 MCP stdio server/client/gateway。Agent 通过 `tools/gateway.py` 调用工具，默认直连，`TOOL_BACKEND=mcp` 时切换到持久 MCP 会话。充电/救援默认通过高德 POI 提供地点信息；配置商业供应商 base URL/key 后，EnergyAgent/SafetyAgent 会优先使用商业充电/救援适配器（实时价格/排队/可用枪数取决于供应商返回）。行程聚合会按配置参数估算能源费 + 过路费（`Itinerary.cost_estimate`），路书会展示费用章节和按同行人数均摊的金额；估算不含住宿、餐饮、门票和停车费。外部集成可直接使用 `smart_roadtrip.client.RoadtripClient` 或 `scripts/roadtrip_cli.py`。OpenAPI 文档包含中文 tags、各路由 summary 与 `ChatRequest`/`TripRequest`/`ConfirmationDecision` 示例。`README.md` 提供用户向的快速开始、配置表与 API 示例；本文件侧重开发约定、模块细节与测试说明。
+项目名：**基于多智能体协作的旅行规划系统（Smart Roadtrip）**。这是一个智能自驾游多 Agent 行程规划系统。设计依据是 `docs/architecture.jpg`（根目录的微信图片为其原始副本）。`docs/resume-project.md` 是面向简历/面试的项目说明（通过 `.git/info/exclude` 本地排除，不提交到版本库），其中的测试数、接口数、工具数等指标会随代码变化，增删功能后需要同步核对。当前已完成数据模型、共享状态、MainAgent 图骨架、FastAPI 接口（可选 API key/多 key 鉴权、线程归属隔离、租户配额、行程列表/用量/删除、租户审计查询、管理员跨租户用量汇总、限流、CORS、readiness、请求 ID、进程内指标与审计日志），A2A 任务/结果信封与 MCP 工具调用协议、Streamlit 原型、自然语言需求解析（LLM 可选、规则降级）、高德地图（路线/POI）、彩云天气与 Open-Meteo 免费天气、本地 RAG（FAISS + sentence-transformers）、可选的 SQLite 会话持久化、游记草稿生成（LLM 可选、模板降级）、Markdown/HTML/GPX/PDF 导出，以及 MCP stdio server/client/gateway。Agent 通过 `tools/gateway.py` 调用工具，默认直连，`TOOL_BACKEND=mcp` 时切换到持久 MCP 会话。充电/救援默认通过高德 POI 提供地点信息；配置商业供应商 base URL/key 后，EnergyAgent/SafetyAgent 会优先使用商业充电/救援适配器（实时价格/排队/可用枪数取决于供应商返回）。行程聚合会按配置参数估算能源费 + 过路费（`Itinerary.cost_estimate`），路书会展示费用章节和按同行人数均摊的金额；估算不含住宿、餐饮、门票和停车费。外部集成可直接使用 `smart_roadtrip.client.RoadtripClient` 或 `scripts/roadtrip_cli.py`。OpenAPI 文档包含中文 tags、各路由 summary 与 `ChatRequest`/`TripRequest`/`ConfirmationDecision` 示例。`README.md` 提供用户向的快速开始、配置表与 API 示例；本文件侧重开发约定、模块细节与测试说明。
 
 ## 运行环境
 
@@ -62,7 +62,7 @@ LANGGRAPH_STRICT_MSGPACK=true python -m pytest tests/test_planning_graph.py test
 - `tests/test_api.py`：FastAPI 接口测试，覆盖结构化/自然语言创建、确认、查询、路书与游记导出、重复线程与错误状态。
 - `tests/test_streamlit_app.py`：用 `streamlit.testing.v1.AppTest` 跑界面初始渲染。
 
-`tests/conftest.py` 会在每个测试前清空所有外部密钥，确保测试不会误连真实服务；工具测试通过 `httpx.MockTransport` 提供假响应，API 测试通过 `api/runtime.reset_runtime()` 隔离图与线程状态。
+`tests/conftest.py` 会在每个测试前清空所有外部密钥，确保测试不会误连真实服务；工具测试通过 `httpx.MockTransport` 提供假响应，API 测试通过 `api/runtime.reset_runtime()` 隔离图与线程状态。测试用 `monkeypatch.setattr(config, ...)` 覆盖配置而不改 `.env`，因此业务代码应在函数调用时读取 `config.X`，不要在模块导入时缓存成模块级常量，否则测试无法切换配置。
 
 ## 架构
 
@@ -128,6 +128,7 @@ START → parse → dispatch ─Send 扇出→ route / weather / knowledge / gro
 
 - 用 `build_graph(*, checkpointer=None, max_revisions=2, backend=None)` 构建图；不传 checkpointer 时按 `CHECKPOINTER_BACKEND`（`memory` / `sqlite`）创建带类型白名单的 checkpointer。测试默认 `memory`；生产可复用同一图，靠唯一 `thread_id` 隔离会话。
 - 扇出 Agent 由 `select_agents()` 决定：固定 route/weather/knowledge/group，`request.needs_charging` 为真时才追加 energy；`_FANOUT_AGENTS` 是节点注册表。safety/report 依赖上游结果，串行执行。
+- `aggregate` 只取 `route_options[0]` 生成行程，每日活动目前是按天数拼的确定性模板（首日抵达、末日返程、中间按 `preferences.interests` 轮换），POI/景点尚未参与日程编排；能源费与过路费在 `_estimate_cost()` 中估算。改日程生成只需动 `_build_itinerary()`，不要在子 Agent 里改状态。
 - `CHECKPOINTER_BACKEND=sqlite` 时状态持久化到 `CHECKPOINT_DB_PATH`，进程重启后可用同一 `thread_id` 恢复待确认/已完成行程。SQLite 连接使用 `check_same_thread=False`，由 `close_graph()` / `reset_default_graph()` / `api.runtime.reset_runtime()` 关闭。
 - 测试应每次新建图；生产中可以复用同一图，但不要跨会话共享同一个 `thread_id`。
 - 需求输入：`start_planning` 接受 `TripRequest`、字典或字符串。字符串由 `request_parser.parse_request_text()` 处理；配置了 `LLM_API_KEY` + `LLM_MODEL` 时使用 `ChatOpenAI`（20 秒超时、不重试），调用/校验失败自动回退规则解析。规则解析覆盖「从X到Y」「N天」「N人」「电车/混动/油车」「预算N元/万」、中文数字、相对日期与常见兴趣关键词；缺少出发地/目的地会抛出 `RequestParseError`（API 映射为 422）。
@@ -212,7 +213,7 @@ docker compose --profile ui up -d --build                       # 可选 Streaml
 
 - `.github/workflows/ci.yml`：Ubuntu + Python 3.11，先装 CPU 版 torch，再安装 `requirements-dev.txt`，运行全量 `pytest` 与 `LANGGRAPH_STRICT_MSGPACK=true` 的核心子集。
 - Docker 镜像构建未放进 CI（torch/模型依赖体积大，构建时间长）。
-- 仓库当前不是 git 仓库；初始化并推送到 GitHub 后该 workflow 才会实际运行。
+- 仓库已是 git 仓库（`main` 分支）；推送到 GitHub 后该 workflow 才会实际运行。
 
 ## 协议与保障
 

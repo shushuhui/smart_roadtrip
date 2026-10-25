@@ -16,6 +16,7 @@ from smart_roadtrip.api.security import (
     BodySizeLimitMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
+    configured_api_keys,
 )
 from smart_roadtrip.rag import retriever
 
@@ -73,7 +74,7 @@ def metrics() -> dict:
 def ready() -> dict:
     checks: dict[str, object] = {
         "checkpointer_backend": config.CHECKPOINTER_BACKEND,
-        "api_auth_enabled": bool(config.API_KEY),
+        "api_auth_enabled": bool(configured_api_keys()),
         "rate_limit_per_minute": config.RATE_LIMIT_PER_MINUTE,
         "amap_configured": bool(config.AMAP_API_KEY),
         "caiyun_configured": bool(config.CAIYUN_API_KEY),
