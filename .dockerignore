@@ -1,0 +1,16 @@
+.git
+.idea
+.vscode
+.env
+.env.*
+__pycache__
+*.py[cod]
+.pytest_cache
+.coverage
+htmlcov
+tests
+docs
+*.jpg
+微信图片*
+data/vector_store
+data/*.sqlite*

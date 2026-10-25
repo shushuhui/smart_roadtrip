@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+
+# 向量索引与缓存
+data/vector_store/*
+!data/vector_store/.gitkeep
+data/*.sqlite
+data/*.sqlite-*
+.pytest_cache/
+.htmlcov/
+.coverage
+
+# 系统文件
+.DS_Store
+Thumbs.db

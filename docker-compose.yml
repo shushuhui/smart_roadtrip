@@ -1,0 +1,55 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      CHECKPOINTER_BACKEND: sqlite
+      CHECKPOINT_DB_PATH: /app/data/checkpoints.sqlite
+    volumes:
+      - ./data:/app/data
+      - hf_cache:/home/appuser/.cache/huggingface
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  ui:
+    build: .
+    profiles: ["ui"]
+    command:
+      - streamlit
+      - run
+      - smart_roadtrip/ui/streamlit_app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      # UI 直接调用编排层，使用内存会话，避免与 API 并发写同一个 SQLite。
+      CHECKPOINTER_BACKEND: memory
+      TOOL_BACKEND: direct
+    volumes:
+      - ./data:/app/data:ro
+      - hf_cache:/home/appuser/.cache/huggingface
+    depends_on:
+      - api
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      disable: true
+
+volumes:
+  hf_cache:
