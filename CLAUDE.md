@@ -25,7 +25,7 @@ python -m pytest tests/test_imports.py::test_packages_import   # 单个测试
 python scripts/ingest_knowledge.py                        # 构建 RAG 索引
 python smart_roadtrip/tools/mcp/server.py                 # MCP stdio server（通常由客户端启动）
 # CI 额外跑的核心子集（checkpointer 严格反序列化）
-LANGGRAPH_STRICT_MSGPACK=true python -m pytest tests/test_planning_graph.py tests/test_api.py tests/test_persistence.py tests/test_journal.py tests/test_export.py
+LANGGRAPH_STRICT_MSGPACK=true python -m pytest tests/test_planning_graph.py tests/test_api.py tests/test_persistence.py tests/test_journal.py tests/test_export.py tests/test_a2a.py
 ```
 
 `requirements-dev.txt` 只额外提供 pytest；换环境后先 `pip install -r requirements-dev.txt`。仓库尚未配置 lint/formatter。

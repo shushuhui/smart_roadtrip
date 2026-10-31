@@ -39,4 +39,5 @@ jobs:
           tests/test_persistence.py
           tests/test_journal.py
           tests/test_export.py
+          tests/test_a2a.py
           -q
