@@ -171,7 +171,7 @@ parse → dispatch → route/weather/energy/knowledge/group
 python -m pytest
 LANGGRAPH_STRICT_MSGPACK=true python -m pytest \
   tests/test_planning_graph.py tests/test_api.py tests/test_persistence.py \
-  tests/test_journal.py tests/test_export.py tests/test_a2a.py
+  tests/test_journal.py tests/test_export.py
 ```
 
 - 测试默认关闭外部 key、Open-Meteo 与 RAG，不会访问真实服务。

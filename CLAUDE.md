@@ -31,7 +31,7 @@ LANGGRAPH_STRICT_MSGPACK=true python -m pytest tests/test_planning_graph.py test
 `requirements-dev.txt` 只额外提供 pytest；换环境后先 `pip install -r requirements-dev.txt`。仓库尚未配置 lint/formatter。
 
 测试分类：
-- `tests/test_imports.py`：冒烟测试，硬编码了需要可导入的模块清单 `MODULES`。新增模块时要同步加进这个列表，否则该模块不会被覆盖。
+- `tests/test_imports.py`：冒烟测试，硬编码了需要可导入的模块清单 `MODULES`。新增模块时要同步加进这个列表，否则该模块不会被覆盖；`ui/streamlit_app.py` 由 `tests/test_streamlit_app.py` 通过 AppTest 运行覆盖，不在 `MODULES` 列表中。
 - `tests/test_planning_graph.py`：编排图端到端测试，覆盖中断/批准、拒绝重排、修订次数上限回退、安全确认红线、路线失败兜底与版本回滚。
 - `tests/test_request_parser.py`：自然语言规则解析、中文数字/日期、预算、偏好、缺失字段报错，以及 LLM 成功/失败降级与返回字段归一化。
 - `tests/test_rag.py`：用确定性假 embedder 验证切分、FAISS 摄取/检索、缺失索引降级与 KnowledgeAgent 的真实/占位路径，不下载模型。
@@ -69,7 +69,7 @@ LANGGRAPH_STRICT_MSGPACK=true python -m pytest tests/test_planning_graph.py test
 四层结构，依赖方向自上而下。子 Agent 之间不直接调用业务代码，统一经编排层调度，并通过 A2A 消息协作。
 
 1. **用户层**
-   - `smart_roadtrip/api/`：FastAPI 接口，已接入编排层；`runtime.py` 持有图与线程注册表（SQLite 下支持重启恢复），`schemas.py` 定义对外视图，`security.py` 提供可选 API key/多 key 鉴权与进程内限流，`ownership.py` 维护 thread_id 到 owner 的归属（memory 或同一 SQLite 文件），`observability.py` 提供请求 ID、指标、审计日志、`LOG_LEVEL`/`LOG_FORMAT` 与 JSON 日志格式，`audit_store.py` 持久化并按 owner 查询审计事件
+   - `smart_roadtrip/api/`：FastAPI 接口，已接入编排层；`runtime.py` 持有图与线程注册表（SQLite 下支持重启恢复），`schemas.py` 定义对外视图，`security.py` 提供可选 API key/多 key 鉴权与进程内限流，`ownership.py` 维护 thread_id 到 owner 的归属（memory 或同一 SQLite 文件），`observability.py` 提供请求 ID、指标、审计日志、`LOG_LEVEL`/`LOG_FORMAT` 与 JSON 日志格式，`audit_store.py` 持久化并按 owner 查询审计事件，`admin.py` 提供管理员跨租户用量汇总（需 `ADMIN_API_KEY`）
    - `smart_roadtrip/client.py`：Python HTTP 客户端，封装 health/ready/plan/confirm/list/usage/audit/export/delete；`scripts/roadtrip_cli.py` 基于它提供 CLI
    - `smart_roadtrip/ui/`：Streamlit 原型，支持自然语言/表单两种需求输入、待确认项勾选、批准/退回、Markdown/HTML/GPX/PDF 下载与游记草稿生成（直接调用编排层，不经过 HTTP）
 
@@ -152,7 +152,7 @@ START → parse → dispatch ─Send 扇出→ route / weather / knowledge / gro
 
 ## HTTP 接口
 
-路由在 `api/chat.py` 与 `api/trips.py`，由 `main.py` 统一挂载：
+路由在 `api/chat.py`、`api/trips.py` 与 `api/admin.py`，由 `main.py` 统一挂载；`/health`、`/ready`、`/metrics` 直接定义在 `main.py`：
 
 - `POST /chat`：body 提供 `trip`（结构化 `TripRequest`）或 `message`（自然语言）之一：`{"thread_id": "可选", "trip": {...}}` 或 `{"thread_id": "可选", "message": "..."}`。返回 `thread_id`、解析后的 `trip`、`awaiting_confirmation` 与 `TripStateView`。缺省 `thread_id` 由服务端生成；重复的 `thread_id` 返回 409；自然语言无法解析返回 422。
 - `GET /trips?limit=20&offset=0`：列出当前 owner 的行程（按创建时间倒序），返回 `thread_id`、创建时间、状态、出发地/目的地、天数和版本指针。只返回归属当前 key 的线程。
